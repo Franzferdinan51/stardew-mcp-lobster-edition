@@ -16,7 +16,7 @@ A hybrid AI-controlled game mod that bridges Stardew Valley with AI assistants v
 ┌─────────────────────────────────────────────────────────┐
 │ MCP Server (Go)                                         │
 │   GameClient: WebSocket connection, state tracking      │
-│   StardewAgent: 12 tools, autonomous loop, LLM calls    │
+│   StardewAgent: 12 tools + 30 cheats, autonomous loop   │
 └─────────────────────────────────────────────────────────┘
               ↕ Copilot SDK
 ┌─────────────────────────────────────────────────────────┐
@@ -89,7 +89,10 @@ The mod activates once you load into a game save.
 
 ```bash
 cd mcp-server
-./stardew-mcp
+./stardew-mcp                    # Run with default autonomous mode
+./stardew-mcp -auto=false        # Connect without starting AI agent
+./stardew-mcp -goal "Clear the farm and plant parsnips"
+./stardew-mcp -url ws://localhost:8765/game  # Custom WebSocket URL
 ```
 
 The server connects to the game via WebSocket and begins the autonomous AI agent loop.
@@ -112,6 +115,80 @@ The AI agent has access to 12 tools for controlling the game:
 | `enter_door` | Enter a building or warp point |
 | `find_best_target` | Find optimal target for current tool |
 | `clear_target` | Clear the current target |
+
+## Cheat Mode
+
+Cheat mode provides instant god-mode capabilities for rapid testing or stress-free gameplay. **Must call `cheat_mode_enable` first** before any other cheat commands work.
+
+### Mode Control
+| Tool | Description |
+|------|-------------|
+| `cheat_mode_enable` | Enable cheat mode (required first) |
+| `cheat_mode_disable` | Disable cheat mode and all persistent effects |
+| `cheat_time_freeze` | Toggle time freeze on/off |
+| `cheat_infinite_energy` | Toggle infinite stamina on/off |
+
+### Teleportation
+| Tool | Description |
+|------|-------------|
+| `cheat_warp` | Teleport to location (Farm, Town, Mountain, Beach, Forest, Mine, Desert) |
+| `cheat_mine_warp` | Warp to specific mine level (1-120 = Mines, 121+ = Skull Cavern) |
+
+### Farming Automation
+| Tool | Description |
+|------|-------------|
+| `cheat_clear_debris` | Remove all weeds, stones, twigs, grass |
+| `cheat_cut_trees` | Chop all trees, collect wood/hardwood |
+| `cheat_mine_rocks` | Mine all rocks/boulders, collect ores |
+| `cheat_hoe_all` | Till all diggable tiles |
+| `cheat_water_all` | Water all tilled soil |
+| `cheat_plant_seeds` | Plant seeds on all empty hoed tiles (requires seedId) |
+| `cheat_fertilize_all` | Apply fertilizer to all hoed tiles |
+| `cheat_grow_crops` | Instantly grow all crops to harvest-ready |
+| `cheat_harvest_all` | Harvest all ready crops |
+| `cheat_dig_artifacts` | Dig up all artifact spots |
+
+### Pattern Drawing
+| Tool | Description |
+|------|-------------|
+| `cheat_hoe_tiles` | Hoe specific tiles by coordinates (tiles="x,y;x,y") |
+| `cheat_clear_tiles` | Clear specific tiles |
+| `cheat_hoe_custom_pattern` | Draw shapes using ASCII grid input |
+
+### Resources & Items
+| Tool | Description |
+|------|-------------|
+| `cheat_set_money` | Set gold amount |
+| `cheat_add_item` | Add item by ID (e.g., "(O)465" for starfruit seeds) |
+| `cheat_spawn_ores` | Add ores: copper, iron, gold, iridium, coal |
+| `cheat_set_energy` | Restore stamina to max |
+| `cheat_set_health` | Restore health to max |
+
+### Social
+| Tool | Description |
+|------|-------------|
+| `cheat_set_friendship` | Set friendship with NPC (hearts 1-10 or points) |
+| `cheat_max_all_friendships` | Max out all NPC friendships |
+| `cheat_give_gift` | Give gift to NPC instantly |
+
+### Upgrades
+| Tool | Description |
+|------|-------------|
+| `cheat_upgrade_backpack` | Upgrade backpack (12, 24, or 36 slots) |
+| `cheat_upgrade_tool` | Upgrade tool (0=Basic to 4=Iridium) |
+| `cheat_upgrade_all_tools` | Upgrade all tools to specified level |
+| `cheat_unlock_all` | Max everything: backpack, tools, recipes, skills |
+
+### Example: Instant Farm Setup
+```
+1. cheat_mode_enable
+2. cheat_warp Farm
+3. cheat_clear_debris, cheat_cut_trees, cheat_mine_rocks
+4. cheat_hoe_all
+5. cheat_plant_seeds (with seedId "472" for parsnips)
+6. cheat_grow_crops
+7. cheat_harvest_all
+```
 
 ## WebSocket Protocol
 
