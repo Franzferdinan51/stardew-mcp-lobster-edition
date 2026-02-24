@@ -1,0 +1,246 @@
+{
+  "name": "stardew-mcp",
+  "description": "Stardew Valley AI Controller - Control and automate Stardew Valley gameplay",
+  "version": "1.0.0",
+  "connection": {
+    "type": "websocket",
+    "url": "ws://127.0.0.1:8765/openclaw"
+  },
+  "tools": [
+    {
+      "name": "get_state",
+      "description": "Get complete game state including player position, inventory, time, location, and stats"
+    },
+    {
+      "name": "get_surroundings",
+      "description": "Get detailed information about nearby tiles, objects, NPCs, and terrain"
+    },
+    {
+      "name": "move_to",
+      "description": "Navigate player to specified X,Y coordinates using pathfinding",
+      "parameters": {
+        "x": {"type": "integer", "description": "Target X coordinate"},
+        "y": {"type": "integer", "description": "Target Y coordinate"}
+      }
+    },
+    {
+      "name": "interact",
+      "description": "Interact with the object or NPC directly in front of the player"
+    },
+    {
+      "name": "use_tool",
+      "description": "Use the currently selected tool (hoe, watering can, pickaxe, etc.)"
+    },
+    {
+      "name": "use_tool_repeat",
+      "description": "Use tool repeatedly with configurable delay",
+      "parameters": {
+        "count": {"type": "integer", "description": "Number of times to use tool"},
+        "direction": {"type": "integer", "description": "Direction to face (0=down, 1=left, 2=right, 3=up)"}
+      }
+    },
+    {
+      "name": "select_item",
+      "description": "Select an item from inventory by slot number",
+      "parameters": {
+        "slot": {"type": "integer", "description": "Inventory slot (0-11)"}
+      }
+    },
+    {
+      "name": "switch_tool",
+      "description": "Switch to a tool by name",
+      "parameters": {
+        "tool": {"type": "string", "description": "Tool name (hoe, watering_can, pickaxe, axe, sword, etc.)"}
+      }
+    },
+    {
+      "name": "face_direction",
+      "description": "Change the direction the player is facing",
+      "parameters": {
+        "direction": {"type": "integer", "description": "Direction: 0=down, 1=left, 2=right, 3=up"}
+      }
+    },
+    {
+      "name": "eat_item",
+      "description": "Eat an item from inventory to restore energy/health",
+      "parameters": {
+        "slot": {"type": "integer", "description": "Inventory slot of food item"}
+      }
+    },
+    {
+      "name": "enter_door",
+      "description": "Enter a building or mine shaft when standing at a door/warp point"
+    },
+    {
+      "name": "find_best_target",
+      "description": "Find the nearest actionable object (harvestable crop, ore, tree, etc.)",
+      "parameters": {
+        "type": {"type": "string", "description": "Target type: crop, ore, tree, forage, monster, npc"}
+      }
+    },
+    {
+      "name": "clear_target",
+      "description": "Clear the current target selection"
+    },
+    {
+      "name": "cheat_mode_enable",
+      "description": "Enable god-mode cheat commands (must enable before using any cheat)"
+    },
+    {
+      "name": "cheat_mode_disable",
+      "description": "Disable cheat mode"
+    },
+    {
+      "name": "cheat_time_freeze",
+      "description": "Freeze/unfreeze game time",
+      "parameters": {
+        "freeze": {"type": "boolean", "description": "true to freeze, false to unfreeze"}
+      }
+    },
+    {
+      "name": "cheat_infinite_energy",
+      "description": "Enable/disable infinite energy",
+      "parameters": {
+        "enable": {"type": "boolean", "description": "true to enable, false to disable"}
+      }
+    },
+    {
+      "name": "cheat_warp",
+      "description": "Teleport to any location",
+      "parameters": {
+        "location": {"type": "string", "description": "Location name: Farm, Town, Beach, Mountain, Mine, etc."}
+      }
+    },
+    {
+      "name": "cheat_mine_warp",
+      "description": "Warp to a specific mine level",
+      "parameters": {
+        "level": {"type": "integer", "description": "Mine level (1-120)"}
+      }
+    },
+    {
+      "name": "cheat_hoe_all",
+      "description": "Till all soil in the current area"
+    },
+    {
+      "name": "cheat_water_all",
+      "description": "Water all crops in the current area"
+    },
+    {
+      "name": "cheat_grow_crops",
+      "description": "Grow all crops to harvestable state instantly"
+    },
+    {
+      "name": "cheat_harvest_all",
+      "description": "Harvest all ready crops in the current area"
+    },
+    {
+      "name": "cheat_plant_seeds",
+      "description": "Plant season-appropriate seeds on all tilled soil",
+      "parameters": {
+        "season": {"type": "string", "description": "Season: spring, summer, fall, winter"}
+      }
+    },
+    {
+      "name": "cheat_fertilize_all",
+      "description": "Apply fertilizer to all soil",
+      "parameters": {
+        "type": {"type": "string", "description": "Fertilizer type: speed_gro, deluxe_speed_gro, hyper_speed_gro"}
+      }
+    },
+    {
+      "name": "cheat_clear_debris",
+      "description": "Clear all debris in the current area"
+    },
+    {
+      "name": "cheat_cut_trees",
+      "description": "Cut down all trees in the current area"
+    },
+    {
+      "name": "cheat_mine_rocks",
+      "description": "Break all mine rocks in the current area"
+    },
+    {
+      "name": "cheat_dig_artifacts",
+      "description": "Dig up all artifact spots in the current area"
+    },
+    {
+      "name": "cheat_hoe_tiles",
+      "description": "Create a pattern of tilled tiles",
+      "parameters": {
+        "pattern": {"type": "string", "description": "ASCII pattern (x = till, . = don't till)"}
+      }
+    },
+    {
+      "name": "cheat_clear_tiles",
+      "description": "Clear objects from tiles in a pattern",
+      "parameters": {
+        "pattern": {"type": "string", "description": "ASCII pattern (x = clear, . = don't clear)"}
+      }
+    },
+    {
+      "name": "cheat_set_money",
+      "description": "Set player's money to a specific amount",
+      "parameters": {
+        "amount": {"type": "integer", "description": "Amount of gold"}
+      }
+    },
+    {
+      "name": "cheat_add_item",
+      "description": "Add an item to inventory by ID",
+      "parameters": {
+        "id": {"type": "string", "description": "Item ID (e.g., 771 for pumpkin seeds)"},
+        "count": {"type": "integer", "description": "Number of items"}
+      }
+    },
+    {
+      "name": "cheat_spawn_ores",
+      "description": "Spawn ore nodes in the mine",
+      "parameters": {
+        "type": {"type": "string", "description": "Ore type: copper, iron, gold, iridium"}
+      }
+    },
+    {
+      "name": "cheat_set_friendship",
+      "description": "Set friendship level with an NPC",
+      "parameters": {
+        "npc": {"type": "string", "description": "NPC name"},
+        "points": {"type": "integer", "description": "Friendship points (0-2500)"}
+      }
+    },
+    {
+      "name": "cheat_max_all_friendships",
+      "description": "Max out friendship with all NPCs"
+    },
+    {
+      "name": "cheat_give_gift",
+      "description": "Give a gift to an NPC",
+      "parameters": {
+        "npc": {"type": "string", "description": "NPC name"},
+        "item_id": {"type": "string", "description": "Item ID to give"}
+      }
+    },
+    {
+      "name": "cheat_upgrade_backpack",
+      "description": "Upgrade backpack size",
+      "parameters": {
+        "level": {"type": "integer", "description": "Upgrade level (1-2)"}
+      }
+    },
+    {
+      "name": "cheat_upgrade_tool",
+      "description": "Upgrade a tool to max level",
+      "parameters": {
+        "tool": {"type": "string", "description": "Tool name: hoe, watering_can, pickaxe, axe"}
+      }
+    },
+    {
+      "name": "cheat_upgrade_all_tools",
+      "description": "Upgrade all tools to max level"
+    },
+    {
+      "name": "cheat_unlock_all",
+      "description": "Unlock all items at the Casino"
+    }
+  ]
+}
