@@ -1,14 +1,32 @@
 {
-  "name": "stardew-mcp",
+  "name": "stardew-sdk",
   "version": "1.0.0",
-  "description": "Stardew Valley MCP Server - TypeScript with rs-sdk",
+  "description": "Stardew Valley SDK - AI Bot Framework for Stardew Valley",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./bot": "./dist/bot.js",
+    "./tools": "./dist/tools.js",
+    "./types": "./dist/types.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "create-bot": "ts-node src/create-bot.ts"
+    "create-bot": "ts-node src/create-bot.ts",
+    "test": "ts-node src/test-bot.ts"
   },
+  "keywords": [
+    "stardew-valley",
+    "gaming",
+    "bot",
+    "automation",
+    "ai",
+    "mcp"
+  ],
+  "author": "Stardew MCP Team",
+  "license": "MIT",
   "dependencies": {
     "ws": "^8.16.0",
     "yaml": "^2.3.4",
