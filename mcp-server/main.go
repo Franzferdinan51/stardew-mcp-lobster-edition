@@ -5,59 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"gopkg.in/yaml.v3"
 )
-
-// Config represents the configuration file structure
-type Config struct {
-	Server struct {
-		GameURL   string `yaml:"game_url"`
-		AutoStart bool   `yaml:"auto_start"`
-		LogLevel  string `yaml:"log_level"`
-	} `yaml:"server"`
-	Agent struct {
-		DefaultGoal string `yaml:"default_goal"`
-		LLMTimeout  int    `yaml:"llm_timeout"`
-		CheatMode   bool   `yaml:"cheat_mode"`
-	} `yaml:"agent"`
-	OpenClaw struct {
-		Enabled    bool   `yaml:"enabled"`
-		GatewayURL string `yaml:"gateway_url"`
-		AgentName  string `yaml:"agent_name"`
-		Workspace  string `yaml:"workspace"`
-	} `yaml:"openclaw"`
-}
-
-// LoadConfig reads configuration from YAML file
-func LoadConfig(path string) *Config {
-	cfg := &Config{}
-
-	// Set defaults
-	cfg.Server.GameURL = "ws://localhost:8765/game"
-	cfg.Server.AutoStart = true
-	cfg.Server.LogLevel = "info"
-	cfg.Agent.DefaultGoal = "Setup and manage the farm efficiently using available tools"
-	cfg.Agent.LLMTimeout = 60
-	cfg.Agent.CheatMode = false
-	cfg.OpenClaw.Enabled = false
-	cfg.OpenClaw.GatewayURL = "ws://127.0.0.1:18789"
-	cfg.OpenClaw.AgentName = "stardew-farmer"
-	cfg.OpenClaw.Workspace = "~/.openclaw/workspace/stardew"
-
-	// Try to read config file if it exists
-	if data, err := os.ReadFile(path); err == nil {
-		if err := yaml.Unmarshal(data, cfg); err != nil {
-			log.Printf("Warning: Failed to parse config file: %v", err)
-		}
-	}
-
-	return cfg
-}
 
 // GameClient manages the WebSocket connection to the Stardew Valley mod
 type GameClient struct {
@@ -556,68 +508,36 @@ func (c *GameClient) SendCommand(action string, params map[string]interface{}) (
 }
 
 func main() {
-	// Load configuration
-	configPath := flag.String("config", "config.yaml", "Path to configuration file")
-	autoFlag := flag.Bool("auto", false, "Start in autonomous mode (overrides config)")
-	goalFlag := flag.String("goal", "", "Goal for autonomous mode (overrides config)")
-	urlFlag := flag.String("url", "", "WebSocket URL for the game mod (overrides config)")
-	openclawFlag := flag.Bool("openclaw", false, "Enable OpenClaw Gateway mode")
+	autoFlag := flag.Bool("auto", true, "Start in autonomous mode")
+	goalFlag := flag.String("goal", `USE CHEAT MODE to setup the farm:
+1. cheat_mode_enable first
+3. cheat_clear_debris, cheat_cut_trees, cheat_mine_rocks
+4. cheat_hoe_all to till soil
+5. cheat_plant_seeds season appropriate seeds"
+6. cheat_grow_crops then cheat_harvest_all`, "Goal for autonomous mode")
+	urlFlag := flag.String("url", "ws://localhost:8765/game", "WebSocket URL for the game mod")
 	flag.Parse()
-
-	cfg := LoadConfig(*configPath)
-
-	// Command-line flags override config file
-	gameURL := *urlFlag
-	if gameURL == "" {
-		gameURL = cfg.Server.GameURL
-	}
-
-	autoStart := *autoFlag
-	if !flag.Parsed() || autoStart == false && !*autoFlag {
-		autoStart = cfg.Server.AutoStart
-	}
-
-	goal := *goalFlag
-	if goal == "" {
-		goal = cfg.Agent.DefaultGoal
-	}
-
-	// Set log level
-	if cfg.Server.LogLevel == "debug" {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
-	}
-
-	log.Printf("Stardew MCP Server starting...")
-	log.Printf("Game URL: %s", gameURL)
-	log.Printf("Auto-start: %v", autoStart)
 
 	gameClient = NewGameClient()
 
-	// Check for OpenClaw Gateway mode
-	if *openclawFlag || cfg.OpenClaw.Enabled {
-		log.Printf("OpenClaw Gateway mode enabled")
-		startOpenClawGateway(cfg, gameURL, autoStart, goal)
-		return
-	}
-
 	go func() {
 		for {
-			if err := gameClient.Connect(gameURL); err != nil {
+			if err := gameClient.Connect(*urlFlag); err != nil {
 				log.Printf("Failed to connect to game (will retry): %v", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
 			log.Println("Connected to Stardew Valley!")
 
-			if autoStart {
-				log.Printf("Starting autonomous agent with goal: %s", goal)
+			if *autoFlag {
+				log.Printf("Starting autonomous agent with goal: %s", *goalFlag)
 
 				agent, err := NewStardewAgent()
 				if err != nil {
 					log.Printf("Failed to start agent: %v", err)
 					return
 				}
-				if err := agent.StartSession(goal); err != nil {
+				if err := agent.StartSession(*goalFlag); err != nil {
 					log.Printf("Failed to start session: %v", err)
 					return
 				}
@@ -628,211 +548,4 @@ func main() {
 
 	// Block forever
 	select {}
-}
-
-// startOpenClawGateway starts the OpenClaw Gateway integration
-func startOpenClawGateway(cfg *Config, gameURL string, autoStart bool, goal string) {
-	// Connect to game first
-	if err := gameClient.Connect(gameURL); err != nil {
-		log.Printf("Failed to connect to game: %v", err)
-		return
-	}
-	log.Println("Connected to Stardew Valley!")
-
-	// Connect to OpenClaw Gateway
-	gatewayURL := cfg.OpenClaw.GatewayURL
-	log.Printf("Connecting to OpenClaw Gateway at %s...", gatewayURL)
-
-	gwConn, _, err := websocket.DefaultDialer.Dial(gatewayURL, nil)
-	if err != nil {
-		log.Printf("Failed to connect to OpenClaw Gateway: %v", err)
-		log.Println("Falling back to standalone mode...")
-		if autoStart {
-			startAutonomousAgent(goal)
-		}
-		return
-	}
-	defer gwConn.Close()
-	log.Println("Connected to OpenClaw Gateway!")
-
-	// Register this tool server
-	registerMessage := map[string]interface{}{
-		"type":        "tool.register",
-		"name":        "stardew-mcp",
-		"description": "Stardew Valley AI Controller - Farm management and game control",
-		"version":     "1.0.0",
-		"tools":       getStardewTools(),
-	}
-	gwConn.WriteJSON(registerMessage)
-
-	// Start autonomous agent if enabled
-	if autoStart {
-		startAutonomousAgent(goal)
-	}
-
-	// Forward messages between game and OpenClaw Gateway
-	go func() {
-		for {
-			_, msg, err := gwConn.ReadMessage()
-			if err != nil {
-				log.Printf("Gateway read error: %v", err)
-				return
-			}
-
-			// Handle tool calls from OpenClaw
-			var toolMsg map[string]interface{}
-			if err := json.Unmarshal(msg, &toolMsg); err != nil {
-				continue
-			}
-
-			if toolMsg["type"] == "tool.call" {
-				toolName := toolMsg["name"].(string)
-				params := toolMsg["params"].(map[string]interface{})
-
-				result, err := executeTool(toolName, params)
-				response := map[string]interface{}{
-					"type":     "tool.result",
-					"call_id":  toolMsg["call_id"],
-					"success": err == nil,
-					"result":   result,
-				}
-				if err != nil {
-					response["error"] = err.Error()
-				}
-				gwConn.WriteJSON(response)
-			}
-		}
-	}()
-
-	// Block forever
-	select {}
-}
-
-func startAutonomousAgent(goal string) {
-	agent, err := NewStardewAgent()
-	if err != nil {
-		log.Printf("Failed to start agent: %v", err)
-		return
-	}
-	if err := agent.StartSession(goal); err != nil {
-		log.Printf("Failed to start session: %v", err)
-		return
-	}
-}
-
-// getStardewTools returns the tool definitions for OpenClaw
-func getStardewTools() []map[string]interface{} {
-	return []map[string]interface{}{
-		{
-			"name":        "get_state",
-			"description": "Get current game state including player position, inventory, time, and surroundings",
-		},
-		{
-			"name":        "get_surroundings",
-			"description": "Get detailed information about tiles around the player",
-		},
-		{
-			"name":        "move_to",
-			"description": "Move player to specified coordinates",
-			"params": map[string]interface{}{
-				"x": "target X coordinate",
-				"y": "target Y coordinate",
-			},
-		},
-		{
-			"name":        "interact",
-			"description": "Interact with object in front of player",
-		},
-		{
-			"name":        "use_tool",
-			"description": "Use currently selected tool",
-		},
-		{
-			"name":        "select_item",
-			"description": "Select item from inventory by slot number",
-			"params": map[string]interface{}{
-				"slot": "inventory slot number (0-11)",
-			},
-		},
-		{
-			"name":        "switch_tool",
-			"description": "Switch to tool by name",
-			"params": map[string]interface{}{
-				"tool": "tool name (hoe, watering_can, pickaxe, etc.)",
-			},
-		},
-		{
-			"name":        "face_direction",
-			"description": "Face a direction",
-			"params": map[string]interface{}{
-				"direction": "0=down, 1=left, 2=right, 3=up",
-			},
-		},
-		{
-			"name":        "cheat_mode_enable",
-			"description": "Enable god-mode cheat commands",
-		},
-		{
-			"name":        "cheat_warp",
-			"description": "Teleport to location",
-			"params": map[string]interface{}{
-				"location": "location name (Farm, Town, Mine, etc.)",
-			},
-		},
-		{
-			"name":        "cheat_set_money",
-			"description": "Set money amount",
-			"params": map[string]interface{}{
-				"amount": "amount of gold",
-			},
-		},
-	}
-}
-
-// executeTool executes a tool call from OpenClaw
-func executeTool(name string, params map[string]interface{}) (interface{}, error) {
-	switch name {
-	case "get_state":
-		return gameClient.GetState(), nil
-
-	case "get_surroundings":
-		return gameClient.SendCommand("get_surroundings", nil)
-
-	case "move_to":
-		x := int(params["x"].(float64))
-		y := int(params["y"].(float64))
-		return gameClient.SendCommand("move_to", map[string]interface{}{"x": x, "y": y})
-
-	case "interact":
-		return gameClient.SendCommand("interact", nil)
-
-	case "use_tool":
-		return gameClient.SendCommand("use_tool", nil)
-
-	case "select_item":
-		slot := int(params["slot"].(float64))
-		return gameClient.SendCommand("select_item", map[string]interface{}{"slot": slot})
-
-	case "switch_tool":
-		tool := params["tool"].(string)
-		return gameClient.SendCommand("switch_tool", map[string]interface{}{"tool": tool})
-
-	case "face_direction":
-		dir := int(params["direction"].(float64))
-		return gameClient.SendCommand("face_direction", map[string]interface{}{"direction": dir})
-
-	case "cheat_mode_enable":
-		return gameClient.SendCommand("cheat_mode_enable", nil)
-
-	case "cheat_warp":
-		location := params["location"].(string)
-		return gameClient.SendCommand("cheat_warp", map[string]interface{}{"location": location})
-
-	case "cheat_set_money":
-		amount := int(params["amount"].(float64))
-		return gameClient.SendCommand("cheat_set_money", map[string]interface{}{"amount": amount})
-
-	default:
-		return nil, fmt.Errorf("unknown tool: %s", name)
-	}
 }

@@ -2,38 +2,6 @@
 
 A hybrid AI-controlled game mod that bridges Stardew Valley with AI assistants via the Model Context Protocol (MCP). Enables autonomous AI agents to control and play Stardew Valley through real-time game state synchronization.
 
-## Quick Start for AI Agents
-
-### One-Line Setup (Windows)
-```cmd
-cd setup && setup.bat && run.bat
-```
-
-### One-Line Setup (Linux/Mac)
-```bash
-cd setup && chmod +x *.sh && ./setup.sh && ./run.sh
-```
-
-### Prerequisites Check
-1. **Stardew Valley** installed with **SMAPI v4.0.0+**
-2. **Go 1.23+** installed
-3. **.NET 6.0 SDK** (for building the mod)
-
-### Usage Modes
-
-| Mode | Command | Description |
-|------|---------|-------------|
-| Autonomous | `run.bat` / `./run.sh` | AI agent plays automatically |
-| Manual | `run.bat -auto=false` | Connect without AI, send commands manually |
-| OpenClaw | `run.bat -openclaw` | Connect to OpenClaw Gateway |
-
-### Configuration
-Edit `mcp-server/config.yaml` to customize:
-- Game WebSocket URL
-- Auto-start behavior
-- Log level
-- OpenClaw Gateway settings
-
 ## Architecture
 
 ```
