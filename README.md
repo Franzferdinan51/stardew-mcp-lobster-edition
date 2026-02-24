@@ -4,6 +4,19 @@ A hybrid AI-controlled game mod that bridges Stardew Valley with AI assistants v
 
 ## Quick Start
 
+### Interactive TUI Installer (All OS)
+```cmd
+cd setup
+installer.bat
+```
+
+This opens an interactive installer with:
+- 🦞 TUI interface
+- Auto-detect Stardew Valley location
+- Option to enable OpenClaw Gateway
+- Option to enable Remote Server
+- Auto-builds everything
+
 ### Windows (One Command!)
 ```cmd
 cd setup
