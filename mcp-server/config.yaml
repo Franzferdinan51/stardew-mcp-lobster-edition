@@ -31,9 +31,13 @@ agent:
   cheat_mode: false
 
 # OpenClaw Gateway Configuration
-# Uncomment and configure to connect to OpenClaw Gateway
-# openclaw:
-#   enabled: true
-#   gateway_url: "ws://127.0.0.1:18789"
-#   agent_name: "stardew-farmer"
-#   workspace: "~/.openclaw/workspace/stardew"
+# Run with -openclaw flag to enable
+openclaw:
+  # OpenClaw Gateway URL
+  gateway_url: "ws://127.0.0.1:18789"
+
+  # Authentication token (optional, set in environment or here)
+  token: ""
+
+  # Agent name for OpenClaw
+  agent_name: "stardew-farmer"

@@ -523,9 +523,20 @@ func main() {
 	hostFlag := flag.String("host", "127.0.0.1", "Host to bind to for remote connections")
 	portFlag := flag.Int("port", 8765, "Port to listen on for remote connections")
 
+	// OpenClaw Gateway mode
+	openclawMode := flag.Bool("openclaw", false, "Connect to OpenClaw Gateway as tool provider")
+	openclawURL := flag.String("openclaw-url", "ws://127.0.0.1:18789", "OpenClaw Gateway URL")
+	openclawToken := flag.String("openclaw-token", "", "OpenClaw Gateway token (optional)")
+
 	flag.Parse()
 
 	gameClient = NewGameClient()
+
+	// If OpenClaw Gateway mode
+	if *openclawMode {
+		runOpenClawGatewayMode(*openclawURL, *urlFlag, *openclawToken, *autoFlag, *goalFlag)
+		return
+	}
 
 	// If server mode, run as remote agent server
 	if *serverMode {
@@ -562,6 +573,356 @@ func main() {
 
 	// Block forever
 	select {}
+}
+
+// ============================================================================
+// OpenClaw Gateway Protocol Implementation
+// ============================================================================
+
+// OpenClaw Gateway message types
+type OpenClawRequest struct {
+	Type   string                 `json:"type"`
+	ID     string                 `json:"id"`
+	Method string                 `json:"method"`
+	Params map[string]interface{} `json:"params,omitempty"`
+}
+
+type OpenClawResponse struct {
+	Type    string                 `json:"type"`
+	ID      string                 `json:"id"`
+	OK      bool                   `json:"ok"`
+	Payload map[string]interface{} `json:"payload,omitempty"`
+	Error   map[string]interface{} `json:"error,omitempty"`
+}
+
+type OpenClawEvent struct {
+	Type        string                 `json:"type"`
+	Event       string                 `json:"event"`
+	Payload     map[string]interface{} `json:"payload,omitempty"`
+	Seq         int                    `json:"seq,omitempty"`
+	StateVersion int                   `json:"stateVersion,omitempty"`
+}
+
+// OpenClaw Gateway connection
+func connectToOpenClawGateway(gatewayURL string, token string) (*websocket.Conn, error) {
+	log.Printf("Connecting to OpenClaw Gateway at %s...", gatewayURL)
+
+	// Set up header for token authentication
+	header := http.Header{}
+	if token != "" {
+		header.Set("Authorization", "Bearer "+token)
+	}
+
+	conn, _, err := websocket.DefaultDialer.Dial(gatewayURL, header)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to OpenClaw Gateway: %w", err)
+	}
+
+	// Send connect request
+	connectReq := OpenClawRequest{
+		Type:   "req",
+		ID:     "connect",
+		Method: "connect",
+		Params: map[string]interface{}{
+			"caps": []string{"tools.call", "tools.catalog", "operator.read"},
+			"name": "stardew-mcp",
+		},
+	}
+
+	if err := conn.WriteJSON(connectReq); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to send connect request: %w", err)
+	}
+
+	// Wait for response
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to read connect response: %w", err)
+	}
+
+	var resp OpenClawResponse
+	if err := json.Unmarshal(msg, &resp); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to parse connect response: %w", err)
+	}
+
+	if !resp.OK {
+		conn.Close()
+		return nil, fmt.Errorf("connection rejected: %v", resp.Error)
+	}
+
+	log.Println("Connected to OpenClaw Gateway!")
+	return conn, nil
+}
+
+// Register tools with OpenClaw Gateway
+func registerToolsWithGateway(conn *websocket.Conn) error {
+	tools := getStardewToolsForGateway()
+
+	// Use tools.register method to register tools
+	req := OpenClawRequest{
+		Type:   "req",
+		ID:     "register-tools",
+		Method: "tools.register",
+		Params: map[string]interface{}{
+			"tools": tools,
+		},
+	}
+
+	if err := conn.WriteJSON(req); err != nil {
+		return fmt.Errorf("failed to register tools: %w", err)
+	}
+
+	// Wait for response
+	_, msg, err := conn.ReadMessage()
+	if err != nil {
+		return fmt.Errorf("failed to read register response: %w", err)
+	}
+
+	var resp OpenClawResponse
+	if err := json.Unmarshal(msg, &resp); err != nil {
+		return fmt.Errorf("failed to parse register response: %w", err)
+	}
+
+	if !resp.OK {
+		return fmt.Errorf("tool registration failed: %v", resp.Error)
+	}
+
+	log.Printf("Registered %d tools with OpenClaw Gateway", len(tools))
+	return nil
+}
+
+// Run in OpenClaw Gateway mode - connects to Gateway as a tool provider
+func runOpenClawGatewayMode(gatewayURL string, gameURL string, token string, autoStart bool, goal string) {
+	// First connect to the game
+	log.Printf("Connecting to Stardew Valley at %s...", gameURL)
+	for {
+		if err := gameClient.Connect(gameURL); err != nil {
+			log.Printf("Failed to connect to game (will retry): %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		log.Println("Connected to Stardew Valley!")
+		break
+	}
+
+	// Connect to OpenClaw Gateway
+	conn, err := connectToOpenClawGateway(gatewayURL, token)
+	if err != nil {
+		log.Printf("Failed to connect to OpenClaw Gateway: %v", err)
+		log.Println("Falling back to standalone mode...")
+		if autoStart {
+			startAutonomousAgent(goal)
+		}
+		return
+	}
+	defer conn.Close()
+
+	// Register tools
+	if err := registerToolsWithGateway(conn); err != nil {
+		log.Printf("Failed to register tools: %v", err)
+	}
+
+	// Start autonomous agent if enabled
+	if autoStart {
+		startAutonomousAgent(goal)
+	}
+
+	// Handle messages from Gateway
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			log.Printf("Gateway read error: %v", err)
+			break
+		}
+
+		var req OpenClawRequest
+		if err := json.Unmarshal(msg, &req); err != nil {
+			continue
+		}
+
+		// Handle tool calls
+		if req.Type == "req" && req.Method == "tools.call" {
+			go handleToolCall(conn, req)
+		}
+	}
+}
+
+// Handle tool call from OpenClaw Gateway
+func handleToolCall(conn *websocket.Conn, req OpenClawRequest) {
+	toolName, ok := req.Params["name"].(string)
+	if !ok {
+		sendErrorResponse(conn, req.ID, "missing tool name")
+		return
+	}
+
+	params, _ := req.Params["params"].(map[string]interface{})
+
+	result, err := executeOpenClawTool(toolName, params)
+
+	resp := OpenClawResponse{
+		Type: "res",
+		ID:   req.ID,
+		OK:   err == nil,
+	}
+
+	if err != nil {
+		resp.Error = map[string]interface{}{
+			"code":    "tool_error",
+			"message": err.Error(),
+		}
+	} else {
+		resp.Payload = map[string]interface{}{
+			"result": result,
+		}
+	}
+
+	conn.WriteJSON(resp)
+}
+
+// Send error response
+func sendErrorResponse(conn *websocket.Conn, id string, message string) {
+	resp := OpenClawResponse{
+		Type: "res",
+		ID:   id,
+		OK:   false,
+		Error: map[string]interface{}{
+			"code":    "error",
+			"message": message,
+		},
+	}
+	conn.WriteJSON(resp)
+}
+
+// Execute tool and return result
+func executeOpenClawTool(name string, params map[string]interface{}) (interface{}, error) {
+	switch name {
+	case "get_state":
+		return gameClient.GetState(), nil
+	case "get_surroundings":
+		return gameClient.SendCommand("get_surroundings", nil)
+	case "move_to":
+		x := int(params["x"].(float64))
+		y := int(params["y"].(float64))
+		return gameClient.SendCommand("move_to", map[string]interface{}{"x": x, "y": y})
+	case "interact":
+		return gameClient.SendCommand("interact", nil)
+	case "use_tool":
+		return gameClient.SendCommand("use_tool", nil)
+	case "select_item":
+		slot := int(params["slot"].(float64))
+		return gameClient.SendCommand("select_item", map[string]interface{}{"slot": slot})
+	case "switch_tool":
+		tool := params["tool"].(string)
+		return gameClient.SendCommand("switch_tool", map[string]interface{}{"tool": tool})
+	case "face_direction":
+		dir := int(params["direction"].(float64))
+		return gameClient.SendCommand("face_direction", map[string]interface{}{"direction": dir})
+	case "cheat_mode_enable":
+		return gameClient.SendCommand("cheat_mode_enable", nil)
+	case "cheat_warp":
+		location := params["location"].(string)
+		return gameClient.SendCommand("cheat_warp", map[string]interface{}{"location": location})
+	case "cheat_set_money":
+		amount := int(params["amount"].(float64))
+		return gameClient.SendCommand("cheat_set_money", map[string]interface{}{"amount": amount})
+	default:
+		return nil, fmt.Errorf("unknown tool: %s", name)
+	}
+}
+
+// getStardewToolsForGateway returns tool definitions for OpenClaw Gateway
+func getStardewToolsForGateway() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"name":        "get_state",
+			"description": "Get current game state including player position, inventory, time, and surroundings",
+		},
+		{
+			"name":        "get_surroundings",
+			"description": "Get detailed information about tiles around the player",
+		},
+		{
+			"name":        "move_to",
+			"description": "Move player to specified coordinates",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"x": map[string]interface{}{"type": "integer"},
+					"y": map[string]interface{}{"type": "integer"},
+				},
+				"required": []string{"x", "y"},
+			},
+		},
+		{
+			"name":        "interact",
+			"description": "Interact with object in front of player",
+		},
+		{
+			"name":        "use_tool",
+			"description": "Use currently selected tool",
+		},
+		{
+			"name":        "select_item",
+			"description": "Select item from inventory by slot number",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"slot": map[string]interface{}{"type": "integer"},
+				},
+				"required": []string{"slot"},
+			},
+		},
+		{
+			"name":        "switch_tool",
+			"description": "Switch to tool by name",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"tool": map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"tool"},
+			},
+		},
+		{
+			"name":        "face_direction",
+			"description": "Face a direction",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"direction": map[string]interface{}{"type": "integer", "description": "0=down, 1=left, 2=right, 3=up"},
+				},
+				"required": []string{"direction"},
+			},
+		},
+		{
+			"name":        "cheat_mode_enable",
+			"description": "Enable god-mode cheat commands",
+		},
+		{
+			"name":        "cheat_warp",
+			"description": "Teleport to location",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"location": map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"location"},
+			},
+		},
+		{
+			"name":        "cheat_set_money",
+			"description": "Set money amount",
+			"inputSchema": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"amount": map[string]interface{}{"type": "integer"},
+				},
+				"required": []string{"amount"},
+			},
+		},
+	}
 }
 
 // runServerMode runs the MCP server that accepts remote agent connections

@@ -1,5 +1,11 @@
 @echo off
 REM Stardew MCP Server Startup Script for Windows
+REM Usage: run.bat [options]
+REM   -auto=true/false     Enable/disable autonomous mode
+REM   -server              Run as remote server
+REM   -openclaw            Connect to OpenClaw Gateway
+REM   -openclaw-url        OpenClaw Gateway URL
+REM   -goal "..."         Set AI goal
 
 echo Starting Stardew MCP Server...
 echo.

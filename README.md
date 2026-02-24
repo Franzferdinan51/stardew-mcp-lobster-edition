@@ -25,8 +25,8 @@ chmod +x *.sh
 |------|---------|-------------|
 | Autonomous | `run.bat` / `./run.sh` | AI agent plays automatically |
 | Manual | `run.bat -auto=false` | Connect without AI, send commands manually |
-| Remote | `run-remote.bat` / `./run.sh` | Accept remote agent connections |
-| OpenClaw | `run.bat -openclaw` | Connect to OpenClaw Gateway |
+| Remote | `run-remote.bat` / `./run-remote.sh` | Accept remote agent connections |
+| OpenClaw | `run-openclaw.bat` / `./run-openclaw.sh` | Connect to OpenClaw Gateway |
 
 ## Architecture
 
@@ -143,6 +143,33 @@ ws://YOUR_IP:8765/mcp
 Connect to `ws://HOST_IP:8765/mcp` from any machine.
 
 **Important:** Ensure port 8765 is open in your firewall for remote connections.
+
+## OpenClaw Gateway Integration
+
+This server can connect to OpenClaw Gateway as a tool provider, making Stardew Valley accessible to any OpenClaw agent:
+
+### Quick Start with OpenClaw:
+```cmd
+cd setup
+setup.bat
+run-openclaw.bat
+```
+
+### OpenClaw Gateway Options:
+```cmd
+stardew-mcp.exe -openclaw                                    # Connect to local Gateway
+stardew-mcp.exe -openclaw -openclaw-url ws://host:18789     # Custom Gateway URL
+stardew-mcp.exe -openclaw -openclaw-token YOUR_TOKEN        # With authentication
+```
+
+### Environment Variables:
+- `OPENCLAW_GATEWAY_TOKEN` - Token for Gateway authentication
+
+### Protocol:
+The server implements the OpenClaw Gateway protocol:
+- Request: `{ "type": "req", "id": "...", "method": "...", "params": {...} }`
+- Response: `{ "type": "res", "id": "...", "ok": true, "payload": {...} }`
+- Tools are registered via `tools.register` method
 
 ## Available AI Tools
 

@@ -1,5 +1,11 @@
 #!/bin/bash
 # Stardew MCP Server Startup Script for Linux/Mac
+# Usage: ./run.sh [options]
+#   -auto=true/false     Enable/disable autonomous mode
+#   -server              Run as remote server
+#   -openclaw            Connect to OpenClaw Gateway
+#   -openclaw-url        OpenClaw Gateway URL
+#   -goal "..."         Set AI goal
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/../mcp-server"
