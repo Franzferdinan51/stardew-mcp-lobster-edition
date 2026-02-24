@@ -1,0 +1,23 @@
+{
+  "name": "Stardew Farmer (Remote)",
+  "description": "AI-powered Stardew Valley farmer - connects to remote MCP server",
+  "version": "1.0.0",
+  "model": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929"
+  },
+  "workspace": "~/.openclaw/workspace/stardew",
+  "system_prompt": "You are an expert Stardew Valley farmer. Use the provided tools to efficiently manage the farm, interact with NPCs, and progress through the game. Always consider the in-game time (6am-2am) and energy limits when planning activities.",
+  "tools": [
+    {
+      "type": "websocket",
+      "name": "stardew-mcp-remote",
+      "url": "ws://localhost:8765/mcp",
+      "description": "Stardew Valley game control (remote)"
+    }
+  ],
+  "defaults": {
+    "temperature": 0.7,
+    "max_tokens": 4096
+  }
+}

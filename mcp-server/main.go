@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
@@ -516,10 +517,23 @@ func main() {
 5. cheat_plant_seeds season appropriate seeds"
 6. cheat_grow_crops then cheat_harvest_all`, "Goal for autonomous mode")
 	urlFlag := flag.String("url", "ws://localhost:8765/game", "WebSocket URL for the game mod")
+
+	// Server mode flags for remote agent connections
+	serverMode := flag.Bool("server", false, "Run as server to accept remote agent connections")
+	hostFlag := flag.String("host", "127.0.0.1", "Host to bind to for remote connections")
+	portFlag := flag.Int("port", 8765, "Port to listen on for remote connections")
+
 	flag.Parse()
 
 	gameClient = NewGameClient()
 
+	// If server mode, run as remote agent server
+	if *serverMode {
+		runServerMode(*hostFlag, *portFlag, *urlFlag)
+		return
+	}
+
+	// Original behavior - connect to game and optionally run agent
 	go func() {
 		for {
 			if err := gameClient.Connect(*urlFlag); err != nil {
@@ -548,4 +562,109 @@ func main() {
 
 	// Block forever
 	select {}
+}
+
+// runServerMode runs the MCP server that accepts remote agent connections
+func runServerMode(host string, port int, gameURL string) {
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	// First connect to the game
+	log.Printf("Connecting to Stardew Valley at %s...", gameURL)
+	for {
+		if err := gameClient.Connect(gameURL); err != nil {
+			log.Printf("Failed to connect to game (will retry): %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		log.Println("Connected to Stardew Valley!")
+		break
+	}
+
+	// Set up WebSocket upgrader
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	// HTTP server for WebSocket connections
+	http.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("WebSocket upgrade failed: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		log.Printf("Remote agent connected from %s", r.RemoteAddr)
+
+		// Handle messages from remote agent
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				log.Printf("Remote agent disconnected: %v", err)
+				break
+			}
+
+			var req WebSocketMessage
+			if err := json.Unmarshal(msg, &req); err != nil {
+				log.Printf("Failed to parse message: %v", err)
+				continue
+			}
+
+			// Process command and send to game
+			if req.Type == "command" {
+				resp, err := gameClient.SendCommand(req.Action, req.Params)
+
+				// Send response back to agent
+				response := map[string]interface{}{
+					"id":      req.ID,
+					"type":    "response",
+					"success": err == nil,
+				}
+				if err != nil {
+					response["error"] = err.Error()
+				} else if resp != nil {
+					response["success"] = resp.Success
+					response["message"] = resp.Message
+					response["data"] = resp.Data
+				}
+
+				conn.WriteJSON(response)
+			} else if req.Type == "get_state" {
+				// Return current game state
+				state := gameClient.GetState()
+				response := map[string]interface{}{
+					"id":   req.ID,
+					"type": "state",
+					"data": state,
+				}
+				conn.WriteJSON(response)
+			} else if req.Type == "ping" {
+				response := map[string]interface{}{
+					"id":   req.ID,
+					"type": "pong",
+				}
+				conn.WriteJSON(response)
+			}
+		}
+	})
+
+	// Also handle root path
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status": "ok", "service": "stardew-mcp-remote"}`))
+	})
+
+	log.Printf("========================================")
+	log.Printf("Stardew MCP Server - Remote Mode")
+	log.Printf("========================================")
+	log.Printf("Listening for remote agents on: ws://%s/mcp", addr)
+	log.Printf("Game connected at: %s", gameURL)
+	log.Printf("========================================")
+	log.Printf("Waiting for remote connections...")
+	log.Printf("(Press Ctrl+C to stop)")
+	log.Printf("========================================")
+
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		log.Printf("HTTP server error: %v", err)
+	}
 }

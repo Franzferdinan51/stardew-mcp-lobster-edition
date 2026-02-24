@@ -11,6 +11,15 @@ server:
   # Log level: debug, info, warn, error
   log_level: "info"
 
+# Remote Server Mode - for remote AI agents
+# Run with -server flag to enable
+remote:
+  # Host to bind to (0.0.0.0 for all interfaces)
+  host: "0.0.0.0"
+
+  # Port to listen on for remote connections
+  port: 8765
+
 agent:
   # Default goal when auto_start is enabled
   default_goal: "Setup and manage the farm efficiently using available tools"
